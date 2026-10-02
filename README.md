@@ -17,7 +17,7 @@ contract holds by construction.
 ## Install
 
 ```sh
-cargo install --git https://github.com/ncrzw9/eider
+cargo install eider
 ```
 
 ## A project
