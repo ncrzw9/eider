@@ -11,6 +11,29 @@ use std::process::ExitCode;
 use eider::check::check;
 use eider::{config, project};
 
+/// `println!` for stdout, ending the run when the reader has gone. Rust
+/// ignores SIGPIPE, so a plain `println!` panics when output is piped into
+/// something that stops reading (`eider order | head`). This exits with 141,
+/// the status a Unix tool killed by SIGPIPE reports.
+macro_rules! outln {
+    ($($arg:tt)*) => { emit(format_args!($($arg)*)) };
+}
+
+fn emit(args: std::fmt::Arguments<'_>) {
+    use std::io::Write;
+    let mut stdout = std::io::stdout().lock();
+    if let Err(e) = stdout
+        .write_fmt(args)
+        .and_then(|()| stdout.write_all(b"\n"))
+    {
+        if e.kind() == std::io::ErrorKind::BrokenPipe {
+            std::process::exit(141);
+        }
+        eprintln!("eider: cannot write output: {e}");
+        std::process::exit(2);
+    }
+}
+
 const USAGE: &str = "\
 usage: eider check [DIR]    check the project in DIR (default: .)
        eider order [DIR]    print models in build order
@@ -27,16 +50,16 @@ fn main() -> ExitCode {
     };
     match command {
         "--version" | "-V" => {
-            println!("eider {}", env!("CARGO_PKG_VERSION"));
+            outln!("eider {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
         }
         "--help" | "-h" | "help" => {
-            println!("{USAGE}");
+            outln!("{USAGE}");
             ExitCode::SUCCESS
         }
         "check" | "order" => match rest {
             [flag] if flag == "--help" || flag == "-h" => {
-                println!("{USAGE}");
+                outln!("{USAGE}");
                 ExitCode::SUCCESS
             }
             [] => run(command, Path::new(".")),
@@ -88,7 +111,7 @@ fn run(command: &str, root: &Path) -> ExitCode {
                     .map(|m| line_col(&m.sql, start))
             })
             .unwrap_or((1, 1));
-        println!(
+        outln!(
             "{}:{line}:{col}: {} {}",
             display(root, &d.path).display(),
             d.code,
@@ -102,7 +125,7 @@ fn run(command: &str, root: &Path) -> ExitCode {
     // meaningful once the contract holds.
     if command == "order" {
         for name in &report.order {
-            println!("{name}");
+            outln!("{name}");
         }
     }
     ExitCode::SUCCESS
