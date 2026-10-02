@@ -1,0 +1,4 @@
+# Relations eider reads but never writes.
+[sources]
+bronze   = ["fieldbook__sightings", "fieldbook__species"]
+reference = ["birds__taxonomy"]
