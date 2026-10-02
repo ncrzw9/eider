@@ -1,0 +1,24 @@
+[package]
+name = "eider"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/ncrzw9/eider"
+description = "A declarative pipeline compiler for DuckDB: plain SELECT models, enforced layer contracts."
+keywords = ["duckdb", "sql", "data-engineering", "pipeline", "data-vault"]
+categories = ["command-line-utilities", "database"]
+readme = "README.md"
+
+[dependencies]
+# Pinned to a commit until grebe-syntax is on crates.io.
+grebe-syntax = { git = "https://github.com/ncrzw9/grebe", rev = "6a54aafb8db31fa0ceedb851c83fe557f8e1bd8c" }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

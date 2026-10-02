@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/git
+            ~/.cargo/registry
+            target
+          key: ci-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo run --release -- check examples/birds
+      # The examples are the house style: every grebe rule, opt-in ones
+      # included, must be clean, and every file canonically formatted. grebe
+      # is pinned to the same commit as the grebe-syntax dependency.
+      - name: Examples pass every grebe rule and are formatted
+        run: |
+          set -euo pipefail
+          rev=$(sed -n 's/^grebe-syntax = .*rev = "\([0-9a-f]*\)".*/\1/p' Cargo.toml)
+          cargo install --locked --git https://github.com/ncrzw9/grebe --rev "$rev" grebe
+          rules=$(grebe rules | awk '$1 ~ /^MOD[0-9]+$/ {print $1}' | paste -sd, -)
+          grebe check --select "$rules" examples 2>&1 | tee lint.txt
+          grep -q '^0 finding(s)' lint.txt
+          grebe format --check examples
+
