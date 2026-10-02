@@ -12,4 +12,4 @@ dependencies = [
 [[package]]
 name = "grebe-syntax"
 version = "0.4.0"
-source = "git+https://github.com/ncrzw9/grebe?rev=6a54aafb8db31fa0ceedb851c83fe557f8e1bd8c#6a54aafb8db31fa0ceedb851c83fe557f8e1bd8c"
+source = "git+https://github.com/ncrzw9/grebe?rev=05eec60844b297adc222b6129afb10947dbf47da#05eec60844b297adc222b6129afb10947dbf47da"

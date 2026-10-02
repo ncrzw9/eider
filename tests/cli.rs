@@ -389,3 +389,32 @@ fn subcommand_help_prints_usage() {
     assert_eq!(status, 0);
     assert!(out.contains("eider check"), "{out}");
 }
+
+#[test]
+fn a_closed_stdout_ends_the_run_quietly() {
+    // Enough models that `order` writes more than a pipe buffer holds.
+    let files: Vec<(String, String)> = (0..6000)
+        .map(|i| {
+            (
+                format!("models/gold/atlas/output_with_a_long_name_{i:05}.sql"),
+                "SELECT 1".to_string(),
+            )
+        })
+        .collect();
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .collect();
+    let p = Project::new("pipe", SOURCES, &refs);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_eider"))
+        .args(["order", p.0.to_str().unwrap()])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(child.stdout.take());
+    let out = child.wait_with_output().unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!stderr.contains("panicked"), "{stderr}");
+    assert_eq!(out.status.code(), Some(141), "{stderr}");
+}
