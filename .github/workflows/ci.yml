@@ -28,14 +28,13 @@ jobs:
       - run: cargo run --release -- check examples/birds
       # The examples are the house style: every grebe rule, opt-in ones
       # included, must be clean, and every file canonically formatted. grebe
-      # is pinned to the same commit as the grebe-syntax dependency.
+      # is pinned to the version of grebe-syntax the lockfile resolves.
       - name: Examples pass every grebe rule and are formatted
         run: |
           set -euo pipefail
-          rev=$(sed -n 's/^grebe-syntax = .*rev = "\([0-9a-f]*\)".*/\1/p' Cargo.toml)
-          cargo install --locked --git https://github.com/ncrzw9/grebe --rev "$rev" grebe
-          rules=$(grebe rules | awk '$1 ~ /^MOD[0-9]+$/ {print $1}' | paste -sd, -)
-          grebe check --select "$rules" examples 2>&1 | tee lint.txt
+          version=$(grep -A1 '^name = "grebe-syntax"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+          cargo install --locked grebe --version "=$version"
+          grebe check --select ALL examples 2>&1 | tee lint.txt
           grep -q '^0 finding(s)' lint.txt
           grebe format --check examples
 

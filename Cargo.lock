@@ -12,4 +12,5 @@ dependencies = [
 [[package]]
 name = "grebe-syntax"
 version = "0.4.0"
-source = "git+https://github.com/ncrzw9/grebe?rev=05eec60844b297adc222b6129afb10947dbf47da#05eec60844b297adc222b6129afb10947dbf47da"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c5c627bf0396effff407cfcc0a821e82c59f1d475a74c940030bafec6344f66"

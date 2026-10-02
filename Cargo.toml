@@ -11,8 +11,7 @@ categories = ["command-line-utilities", "database"]
 readme = "README.md"
 
 [dependencies]
-# Pinned to a commit until grebe-syntax is on crates.io.
-grebe-syntax = { git = "https://github.com/ncrzw9/grebe", rev = "05eec60844b297adc222b6129afb10947dbf47da" }
+grebe-syntax = "0.4.0"
 
 [lints.rust]
 unsafe_code = "forbid"
