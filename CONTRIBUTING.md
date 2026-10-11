@@ -53,7 +53,7 @@ through a screen reader. If something gets in your way, open an issue.
 
 ## Code of Conduct
 
-This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
-Security issues go through [SECURITY.md](SECURITY.md), not public issues.
+This project follows the [Contributor Covenant](https://github.com/ncrzw9/.github/blob/main/CODE_OF_CONDUCT.md).
+Security issues go through the [security policy](https://github.com/ncrzw9/.github/blob/main/SECURITY.md), not public issues.
 
 By contributing you agree your work is licensed under the [MIT License](LICENSE).
