@@ -1,0 +1,30 @@
+name: Bug report
+description: A wrong finding, a missed one, a crash, or the wrong build order
+labels: [bug]
+body:
+  - type: textarea
+    id: project
+    attributes:
+      label: Project
+      description: "The smallest project that shows it: `eider.toml` and the model files, with their paths."
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: The command you ran and its output.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`eider --version`"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS
