@@ -1,7 +1,7 @@
 # Contributing to eider
 
-Thanks for helping. eider is early: `check` and `order` work, and compiling
-and running models comes next, so the design is still moving.
+Thanks for helping. eider is early: `check`, `order`, `compile` and `run` work,
+and the design is still moving.
 
 ## Before you start
 
@@ -12,7 +12,11 @@ first.
 
 ## Building and testing
 
-You need Rust 1.85 or newer. The same checks CI runs:
+You need Rust 1.85 or newer, and the [DuckDB command
+line](https://duckdb.org/docs/installation/) for the build tests in
+`tests/run.rs`. Without it those tests skip; set `EIDER_TEST_DUCKDB` to its
+path if it isn't on PATH. CI sets `EIDER_REQUIRE_DUCKDB=1` so they never
+skip there. The same checks CI runs:
 
 ```sh
 cargo fmt --check
@@ -31,7 +35,8 @@ If you touch the example, run `grebe check --select ALL examples` and
 
 - `src/project.rs` finds models and reads paths; `src/config.rs` reads
   `eider.toml`; `src/sql.rs` reads dependencies from SQL; `src/check.rs`
-  holds the rules and build order.
+  holds the rules and build order; `src/run.rs` writes the build script and
+  runs it through DuckDB.
 - A new rule gets a code in the README's rule table and an end-to-end test in
   `tests/cli.rs`: a small project that must trigger it. The shipped example
   must stay clean.

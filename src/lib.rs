@@ -11,9 +11,11 @@
 //! catalog (`bronze`, `silver`, …) is attached to, never in the SQL.
 //!
 //! eider is one static binary with no dependency beyond its parser. Checks
-//! run offline, so CI needs no database and no credentials.
+//! run offline, so CI needs no database and no credentials. Builds run through
+//! the user's own `duckdb` command line (see [`run`]).
 
 pub mod check;
 pub mod config;
 pub mod project;
+pub mod run;
 pub mod sql;
