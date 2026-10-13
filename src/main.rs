@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use eider::check::check;
-use eider::{config, project};
+use eider::{config, project, run};
 
 /// `println!` for stdout, ending the run when the reader has gone. Rust
 /// ignores SIGPIPE, so a plain `println!` panics when output is piped into
@@ -35,49 +35,89 @@ fn emit(args: std::fmt::Arguments<'_>) {
 }
 
 const USAGE: &str = "\
-usage: eider check [DIR]    check the project in DIR (default: .)
-       eider order [DIR]    print models in build order
+usage: eider check [DIR]      check the project in DIR (default: .)
+       eider order [DIR]      print models in build order
+       eider compile [DIR]    print the SQL a run executes
+       eider run [DIR] [--database PATH] [--duckdb PATH]
+                              build every model in DuckDB, in one transaction
+                              (database default: DIR/eider.duckdb;
+                              duckdb default: `duckdb` on PATH)
        eider --version";
+
+/// A command and its arguments, once parsed.
+struct Invocation {
+    command: String,
+    root: PathBuf,
+    database: Option<PathBuf>,
+    duckdb: Option<PathBuf>,
+}
+
+fn usage_error(message: &str) -> ExitCode {
+    eprintln!("eider: {message}\n{USAGE}");
+    ExitCode::from(2)
+}
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let (command, rest) = match args.split_first() {
-        Some((c, rest)) => (c.as_str(), rest),
-        None => {
-            eprintln!("{USAGE}");
-            return ExitCode::from(2);
-        }
+    let Some((command, rest)) = args.split_first() else {
+        eprintln!("{USAGE}");
+        return ExitCode::from(2);
     };
-    match command {
+    match command.as_str() {
         "--version" | "-V" => {
             outln!("eider {}", env!("CARGO_PKG_VERSION"));
-            ExitCode::SUCCESS
+            return ExitCode::SUCCESS;
         }
         "--help" | "-h" | "help" => {
             outln!("{USAGE}");
-            ExitCode::SUCCESS
+            return ExitCode::SUCCESS;
         }
-        "check" | "order" => match rest {
-            [flag] if flag == "--help" || flag == "-h" => {
+        "check" | "order" | "compile" | "run" => {}
+        other => return usage_error(&format!("unknown command `{other}`")),
+    }
+    let mut inv = Invocation {
+        command: command.clone(),
+        root: PathBuf::from("."),
+        database: None,
+        duckdb: None,
+    };
+    let mut dir_seen = false;
+    let mut it = rest.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--help" | "-h" => {
                 outln!("{USAGE}");
-                ExitCode::SUCCESS
+                return ExitCode::SUCCESS;
             }
-            [] => run(command, Path::new(".")),
+            "--database" | "--duckdb" if inv.command == "run" => {
+                let Some(value) = it.next() else {
+                    return usage_error(&format!("`{arg}` needs a path"));
+                };
+                let slot = if arg == "--database" {
+                    &mut inv.database
+                } else {
+                    &mut inv.duckdb
+                };
+                if slot.replace(PathBuf::from(value)).is_some() {
+                    return usage_error(&format!("`{arg}` given twice"));
+                }
+            }
             // A leading `-` is an unknown flag, not a directory.
-            [dir] if !dir.starts_with('-') => run(command, Path::new(dir)),
-            _ => {
-                eprintln!("{USAGE}");
-                ExitCode::from(2)
+            flag if flag.starts_with('-') => {
+                return usage_error(&format!("unknown option `{flag}`"));
             }
-        },
-        other => {
-            eprintln!("eider: unknown command `{other}`\n{USAGE}");
-            ExitCode::from(2)
+            dir if !dir_seen => {
+                inv.root = PathBuf::from(dir);
+                dir_seen = true;
+            }
+            _ => return usage_error("only one project directory"),
         }
     }
+    execute(&inv)
 }
 
-fn run(command: &str, root: &Path) -> ExitCode {
+fn execute(inv: &Invocation) -> ExitCode {
+    let root = inv.root.as_path();
     let config_path = root.join("eider.toml");
     let text = match std::fs::read_to_string(&config_path) {
         Ok(t) => t,
@@ -121,14 +161,59 @@ fn run(command: &str, root: &Path) -> ExitCode {
     if !report.diagnostics.is_empty() {
         return ExitCode::from(1);
     }
-    // `order` prints nothing for a project with findings: its order is only
-    // meaningful once the contract holds.
-    if command == "order" {
-        for name in &report.order {
-            outln!("{name}");
+    // Nothing is ordered, compiled or built for a project with findings:
+    // all three are only meaningful once the contract holds.
+    match inv.command.as_str() {
+        "order" => {
+            for name in &report.order {
+                outln!("{name}");
+            }
         }
+        "compile" => outln!("{}", run::script(&models, &report.order, false).trim_end()),
+        "run" => return build(inv, root, &models, &report.order),
+        _ => {}
     }
     ExitCode::SUCCESS
+}
+
+fn build(inv: &Invocation, root: &Path, models: &[project::Model], order: &[String]) -> ExitCode {
+    let database = inv
+        .database
+        .clone()
+        .unwrap_or_else(|| root.join("eider.duckdb"));
+    let duckdb = inv
+        .duckdb
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("duckdb"));
+    match run::run(&run::script(models, order, true), &duckdb, &database) {
+        Ok(()) => ExitCode::SUCCESS,
+        // A rejected model is a finding against that model, in the same
+        // one-line form as every other finding.
+        Err(run::RunError::Model {
+            name,
+            line,
+            message,
+        }) => {
+            let path = models
+                .iter()
+                .find(|m| m.qualified() == name)
+                .map_or_else(|| PathBuf::from(&name), |m| display(root, &m.path));
+            outln!(
+                "{}:{}:1: RUN001 DuckDB rejected the model: {message}",
+                path.display(),
+                line.unwrap_or(1)
+            );
+            ExitCode::from(1)
+        }
+        Err(run::RunError::Database(message)) => {
+            eprintln!("eider: {}: {message}", database.display());
+            ExitCode::from(2)
+        }
+        Err(run::RunError::Engine(message)) => {
+            eprintln!("eider: {message}");
+            ExitCode::from(2)
+        }
+    }
 }
 
 /// 1-based line and column (in characters) of a byte offset.

@@ -11,8 +11,8 @@ contract holds by construction.
 - **Medallion layers with a Data Vault silver tier.** Data flows one way:
   sources → staging → silver → gold.
 
-> Early. `eider check` and `eider order` work today; compiling and running
-> models against DuckDB comes next.
+> Early. `check`, `order`, `compile` and `run` work. Silver is rebuilt in
+> full on every run for now; insert-only, incremental satellites come next.
 
 ## Install
 
@@ -49,15 +49,41 @@ formatted by it.
 ## Usage
 
 ```
-eider check [DIR]    check the project in DIR (default: .)
-eider order [DIR]    print models in build order
+eider check [DIR]      check the project in DIR (default: .)
+eider order [DIR]      print models in build order
+eider compile [DIR]    print the SQL a run executes
+eider run [DIR] [--database PATH] [--duckdb PATH]
+                       build every model in DuckDB, in one transaction
 eider --version
 ```
 
 Each finding is one line, `path:line:col: CODE message`, sorted by file and
-position. `order` prints nothing while there are findings.
+position. `order`, `compile` and `run` do nothing while there are findings.
 
-Exit codes: `0` clean, `1` findings, `2` usage or project error.
+Exit codes: `0` clean, `1` findings (including a model DuckDB rejects), `2`
+usage or project error.
+
+## Building
+
+`eider compile` prints the whole build as plain SQL: a schema per layer,
+then one `CREATE OR REPLACE` per model in build order, all in one
+transaction. Staging models become views; silver and gold models become
+tables.
+
+`eider run` executes that script with the DuckDB command line you already
+have (`duckdb` on PATH, or `--duckdb PATH`) against `--database` (default
+`DIR/eider.duckdb`). eider does not link DuckDB, so it stays one small
+binary and the engine version is yours to choose. Source catalogs
+(`bronze`, `reference`, …) must already exist in the database: eider reads
+them and never writes them.
+
+The build is all or nothing. If DuckDB rejects a model, the transaction
+rolls back, nothing from the run is kept, and the rejection is reported as
+a finding on the model's file:
+
+```
+models/silver/birds/birds__sat_species__fieldbook.sql:3:1: RUN001 DuckDB rejected the model: Binder Error: Referenced column "nope" not found in FROM clause!
+```
 
 ## Rules
 
@@ -74,6 +100,7 @@ Exit codes: `0` clean, `1` findings, `2` usage or project error.
 | `NAM002` | two models in one layer share a name                        |
 | `DAG001` | a model reads a model that does not exist                   |
 | `DAG002` | models depend on each other in a cycle                      |
+| `RUN001` | DuckDB rejected the model during `eider run`                |
 
 Who may read what: staging reads sources; silver reads sources, staging and
 silver; gold reads silver and non-raw sources (any source catalog other
